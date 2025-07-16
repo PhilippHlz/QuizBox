@@ -3,89 +3,103 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>QuizBox – JSON‑Quiz</title>
-    <!-- Bootstrap 5 -->
-    <link
-      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-      rel="stylesheet"
-    />
+    <title>Quiz</title>
     <style>
-      /* Feedbackfarben (Bootstrap 5‑Palette) */
+      :root {
+        --green: #c8f7c5;
+        --red: #f7c5c5;
+        --yellow: #fff8c5;
+        --accent: #2563eb; /* Progress‑Bar */
+      }
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 700px;
+        margin: 0 auto;
+        padding: 1rem;
+        line-height: 1.5;
+      }
+      h1 {
+        text-align: center;
+        margin-bottom: 1.5rem;
+      }
+      .hidden {
+        display: none;
+      }
+      /* Progressbar */
+      .progress {
+        width: 100%;
+        height: 1rem;
+        background: #e5e7eb;
+        border-radius: 9999px;
+        overflow: hidden;
+        margin: 1rem 0;
+      }
+      .progress-inner {
+        height: 100%;
+        width: 0%;
+        background: var(--accent);
+        transition: width 0.3s ease;
+      }
+      /* Feedbackfarben */
       .correct {
-        background-color: #d1e7dd !important; /* success‑subtle */
+        background: var(--green);
       }
       .incorrect {
-        background-color: #f8d7da !important; /* danger‑subtle */
+        background: var(--red);
       }
       .missed {
-        background-color: #fff3cd !important; /* warning‑subtle */
+        background: var(--yellow);
+      }
+      /* Buttons */
+      button {
+        padding: 0.5rem 1rem;
+        margin-top: 1rem;
+        border: none;
+        border-radius: 0.375rem;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      #checkButton {
+        background: var(--accent);
+        color: #fff;
+      }
+      #nextButton {
+        background: #4b5563;
+        color: #fff;
       }
     </style>
   </head>
-  <body class="bg-light py-4">
-    <div class="container">
-      <h1 class="text-center mb-4">QuizBox</h1>
+  <body>
+    <h1>Quiz</h1>
 
-      <!-- Datei‑Upload -->
-      <div class="mb-4">
-        <label for="fileInput" class="form-label"
-          >Quiz‑Datei hochladen (.json)</label
-        >
-        <input
-          type="file"
-          id="fileInput"
-          accept="application/json"
-          class="form-control"
-        />
+    <!-- Datei‑Upload -->
+    <input type="file" id="fileInput" accept="application/json" />
+
+    <!-- Quiz‑Container -->
+    <section id="quizContainer" class="hidden">
+      <div class="progress">
+        <div id="progressBar" class="progress-inner"></div>
       </div>
+      <p id="progressText"></p>
 
-      <!-- Quiz‑Container -->
-      <section id="quizContainer" class="d-none">
-        <div class="progress mb-2" style="height: 1rem">
-          <div
-            id="progressBar"
-            class="progress-bar bg-primary"
-            style="width: 0%"
-          ></div>
-        </div>
-        <p id="progressText" class="small text-muted"></p>
+      <h2 id="questionText"></h2>
+      <form id="answersForm"></form>
 
-        <div class="card shadow-sm mb-3">
-          <div class="card-body">
-            <h2 id="questionText" class="h5"></h2>
-            <form
-              id="answersForm"
-              class="list-group list-group-flush mt-3"
-            ></form>
-          </div>
-        </div>
+      <button id="checkButton" type="button">Antwort prüfen</button>
+      <button id="nextButton" type="button" class="hidden">
+        Nächste Frage
+      </button>
+    </section>
 
-        <button id="checkButton" type="button" class="btn btn-primary me-2">
-          Antwort prüfen
-        </button>
-        <button id="nextButton" type="button" class="btn btn-secondary d-none">
-          Nächste Frage
-        </button>
-      </section>
-
-      <!-- Ergebnis‑Container -->
-      <section id="resultsContainer" class="d-none">
-        <div class="alert alert-info" role="alert">
-          <h2 class="h5 mb-3">Ergebnis</h2>
-          <p id="resultsText" class="mb-0"></p>
-        </div>
-        <button
-          id="restartButton"
-          type="button"
-          class="btn btn-outline-primary"
-        >
-          Neues Quiz
-        </button>
-      </section>
-    </div>
+    <!-- Ergebnis‑Container -->
+    <section id="resultsContainer" class="hidden">
+      <h2>Ergebnis</h2>
+      <p id="resultsText"></p>
+      <button id="restartButton" type="button">Neues Quiz</button>
+    </section>
 
     <script>
-      /* === DOM‑Elemente === */
+      /* === DOM‑Referenzen === */
       const fileInput = document.getElementById("fileInput");
       const quizContainer = document.getElementById("quizContainer");
       const questionText = document.getElementById("questionText");
@@ -99,28 +113,28 @@
       const restartButton = document.getElementById("restartButton");
 
       /* === State === */
-      // Schlüssel enthält Pfad, damit mehrere GitHub‑Pages‑Projekte dieselbe Domain teilen können
-      const STORAGE_KEY = `quizState_${location.pathname}`;
+      const STORAGE_KEY = "quizState";
       let questions = [];
       let currentIndex = 0;
       let correctCount = 0;
 
-      /* === LocalStorage‑Helfer === */
+      /* === Local‑Storage‑Helfer === */
       function saveState() {
-        try {
-          const data = { questions, currentIndex, correctCount };
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-        } catch (err) {
-          console.warn("LocalStorage speichern fehlgeschlagen:", err);
-        }
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({ questions, currentIndex, correctCount })
+        );
       }
       function clearState() {
         localStorage.removeItem(STORAGE_KEY);
       }
 
       /* === Utility === */
-      const arraysEqual = (a, b) =>
-        a.length === b.length && b.every((x) => a.includes(x));
+      function arraysEqual(a, b) {
+        if (a.length !== b.length) return false;
+        const setA = new Set(a);
+        return b.every((el) => setA.has(el));
+      }
 
       /* === UI‑Updates === */
       function updateProgress() {
@@ -131,87 +145,89 @@
 
       function renderQuestion() {
         const q = questions[currentIndex];
-        questionText.textContent = q.question;
+        questionText.textContent = q.frage;
         answersForm.innerHTML = "";
-        q.answers.forEach((answer, idx) => {
+        q.antworten.forEach((answer, idx) => {
           const id = `answer-${idx}`;
-          const item = document.createElement("div");
-          item.className = "list-group-item list-group-item-action";
+          const label = document.createElement("label");
+          label.style.display = "block";
+          label.style.padding = "0.25rem 0.5rem";
+          label.style.borderRadius = "0.375rem";
 
           const checkbox = document.createElement("input");
           checkbox.type = "checkbox";
-          checkbox.className = "form-check-input me-2";
           checkbox.name = "answers";
           checkbox.value = answer;
           checkbox.id = id;
+          checkbox.style.marginRight = "0.5rem";
 
-          const label = document.createElement("label");
-          label.className = "form-check-label";
-          label.htmlFor = id;
-          label.textContent = answer;
-
-          item.appendChild(checkbox);
-          item.appendChild(label);
-          answersForm.appendChild(item);
+          label.appendChild(checkbox);
+          label.appendChild(document.createTextNode(answer));
+          answersForm.appendChild(label);
         });
         checkButton.disabled = false;
-        nextButton.classList.add("d-none");
-        updateProgress();
+        nextButton.classList.add("hidden");
         saveState();
       }
 
       /* === Quiz‑Logik === */
       function checkAnswer() {
         const q = questions[currentIndex];
-        const correctAnswers = q.correctAnswers;
+        const correctAnswers = q.korrekteAntworten;
         const userAnswers = Array.from(
           answersForm.querySelectorAll("input[name='answers']:checked")
         ).map((el) => el.value);
 
-        // Feedback einfärben
-        answersForm.querySelectorAll(".list-group-item").forEach((item) => {
-          const checkbox = item.querySelector("input");
+        // Feedback
+        answersForm.querySelectorAll("label").forEach((label) => {
+          const checkbox = label.querySelector("input");
           const value = checkbox.value;
-          if (correctAnswers.includes(value) && checkbox.checked)
-            item.classList.add("correct");
-          else if (!correctAnswers.includes(value) && checkbox.checked)
-            item.classList.add("incorrect");
-          else if (correctAnswers.includes(value) && !checkbox.checked)
-            item.classList.add("missed");
+          if (correctAnswers.includes(value) && checkbox.checked) {
+            label.classList.add("correct");
+          } else if (!correctAnswers.includes(value) && checkbox.checked) {
+            label.classList.add("incorrect");
+          } else if (correctAnswers.includes(value) && !checkbox.checked) {
+            label.classList.add("missed");
+          }
           checkbox.disabled = true;
         });
 
         // Bewertung
-        if (arraysEqual(userAnswers.sort(), [...correctAnswers].sort()))
+        if (arraysEqual(userAnswers.sort(), correctAnswers.slice().sort())) {
           correctCount++;
+        }
 
         checkButton.disabled = true;
-        nextButton.classList.remove("d-none");
+        nextButton.classList.remove("hidden");
         currentIndex++;
         updateProgress();
         saveState();
+
         if (currentIndex === questions.length)
           nextButton.textContent = "Auswertung anzeigen";
       }
 
       function nextQuestion() {
-        if (currentIndex < questions.length) renderQuestion();
-        else endQuiz();
+        if (currentIndex < questions.length) {
+          renderQuestion();
+        } else {
+          endQuiz();
+        }
       }
 
       function endQuiz() {
-        quizContainer.classList.add("d-none");
-        resultsContainer.classList.remove("d-none");
+        quizContainer.classList.add("hidden");
+        resultsContainer.classList.remove("hidden");
+        const wrong = questions.length - correctCount;
         const percent = ((correctCount / questions.length) * 100).toFixed(0);
-        resultsText.textContent = `Du hast ${correctCount} / ${questions.length} Fragen korrekt beantwortet (≈ ${percent}% ).`;
-        clearState(); // Quiz abgeschlossen ⇒ gespeicherten Stand entfernen
+        resultsText.textContent = `Du hast ${correctCount} von ${questions.length} Fragen korrekt beantwortet (≈ ${percent}% ).`;
+        clearState(); // Quiz beendet – State löschen
       }
 
       function resetState() {
         currentIndex = 0;
         correctCount = 0;
         updateProgress();
-        saveState();
       }
 
       /* === Event‑Handler === */
@@ -224,9 +240,9 @@
             const data = JSON.parse(evt.target.result);
             if (!Array.isArray(data)) throw new Error("JSON ist kein Array");
             questions = data;
-            resultsContainer.classList.add("d-none");
-            quizContainer.classList.remove("d-none");
-            resetState(); // setzt Index zurück und speichert sofort
+            resultsContainer.classList.add("hidden");
+            quizContainer.classList.remove("hidden");
+            resetState();
             renderQuestion();
           } catch (err) {
             alert("Ungültiges JSON‑Format: " + err.message);
@@ -240,41 +256,33 @@
       restartButton.addEventListener("click", () => {
         questions = [];
         clearState();
-        resultsContainer.classList.add("d-none");
-        quizContainer.classList.add("d-none");
+        resultsContainer.classList.add("hidden");
+        quizContainer.classList.add("hidden");
         fileInput.value = "";
       });
 
       /* === Beim Laden: gespeicherten Stand wiederherstellen === */
       window.addEventListener("DOMContentLoaded", () => {
-        try {
-          const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+        if (saved && saved.questions && Array.isArray(saved.questions)) {
           if (
-            saved &&
-            Array.isArray(saved.questions) &&
-            saved.questions.length
+            confirm(
+              "Ein gespeichertes Quiz wurde gefunden. Möchtest du fortsetzen?"
+            )
           ) {
-            if (
-              confirm(
-                "Ein gespeichertes Quiz wurde gefunden. Möchtest du fortsetzen?"
-              )
-            ) {
-              questions = saved.questions;
-              currentIndex = saved.currentIndex || 0;
-              correctCount = saved.correctCount || 0;
-              quizContainer.classList.remove("d-none");
-              if (currentIndex < questions.length) renderQuestion();
-              else endQuiz();
+            questions = saved.questions;
+            currentIndex = saved.currentIndex || 0;
+            correctCount = saved.correctCount || 0;
+            quizContainer.classList.remove("hidden");
+            updateProgress();
+            if (currentIndex < questions.length) {
+              renderQuestion();
             } else {
-              clearState();
+              endQuiz();
             }
+          } else {
+            clearState();
           }
-        } catch (err) {
-          console.warn(
-            "Gespeicherter Quiz‑State konnte nicht gelesen werden:",
-            err
-          );
-          clearState();
         }
       });
     </script>
